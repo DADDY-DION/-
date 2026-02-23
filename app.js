@@ -160,4 +160,58 @@ document.addEventListener('DOMContentLoaded', () => {
         // iOS 系統對於 ja-JP 的支援度比較好，Windows 也是
         startRecording('ja-JP', 'ja', btnSpeakJa);
     });
+
+    // 圖片翻譯邏輯
+    const btnCamera = document.getElementById('btnCamera');
+    const imageInput = document.getElementById('imageInput');
+
+    btnCamera.addEventListener('click', () => {
+        imageInput.click();
+    });
+
+    imageInput.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        statusMessage.textContent = '分析圖片中 (OCR)... 請稍候';
+        statusMessage.classList.add('recording'); // 借用動畫效果
+
+        try {
+            // 使用 Tesseract.js 辨識日文
+            const result = await Tesseract.recognize(
+                file,
+                'jpn', // 指定日文
+                {
+                    logger: m => {
+                        if (m.status === 'recognizing text') {
+                            statusMessage.textContent = `辨識中: ${Math.round(m.progress * 100)}%`;
+                        }
+                    }
+                }
+            );
+
+            const ocrText = result.data.text.trim();
+            if (!ocrText) {
+                showError('圖片中找不到文字，請再試一次。');
+                return;
+            }
+
+            statusMessage.textContent = '辨識完成，正在翻譯...';
+            // 圖片辨識的一律視為日文轉中文
+            const translatedText = await translateText(ocrText, 'ja', 'zh-TW');
+
+            addMessageToChat(`[圖片文字] ${ocrText}`, translatedText, 'ja');
+            statusMessage.textContent = '準備就緒';
+
+            // 朗讀翻譯結果
+            speakText(translatedText, 'zh-TW');
+
+        } catch (error) {
+            console.error('OCR Error:', error);
+            showError('圖片辨識發生錯誤，請稍後再試。');
+        } finally {
+            statusMessage.classList.remove('recording');
+            imageInput.value = ''; // 清空選擇
+        }
+    });
 });

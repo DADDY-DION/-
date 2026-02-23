@@ -226,6 +226,16 @@ main {
     color: #888;
 }
 
+.version-tag {
+    margin-top: 20px;
+    font-size: 0.75rem;
+    color: #ccc;
+    border-top: 1px solid #eee;
+    padding-top: 10px;
+    width: 100%;
+    text-align: center;
+}
+
 /* 訊息對話框樣式 */
 .message {
     max-width: 85%;

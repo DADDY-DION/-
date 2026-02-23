@@ -1,6 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const APP_VERSION = 'v2.4';
-    // 版本標籤：v2.4 (全面支援 Gemini 2.0 與 1.5)
+    const APP_VERSION = 'v3.3';
+    // 版本標籤：v3.3 (優化 AR 覆寫佈局：上方固圖，下方捲動)
     console.log(`--- 翻譯助手 ${APP_VERSION} ---`);
     const versionDisplay = document.getElementById('versionDisplay');
     if (versionDisplay) versionDisplay.textContent = `程式版本: ${APP_VERSION}`;
@@ -227,74 +227,93 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             if (GEMINI_API_KEY) {
-                // --- 使用強大的 Google Gemini AI ---
-                statusMessage.textContent = '呼叫 Google Gemini AI...';
+                // --- [優先] 使用 Google Gemini AI (v3.0 雙模式) ---
+                statusMessage.textContent = '正在呼叫 Google Gemini AI...';
                 const result = await callGeminiVision(file);
 
                 if (!result || result.lines.length === 0) {
-                    showError('Gemini 辨識不到文字。');
+                    showError('哎呀，AI 辨識不到文字。');
                     return;
                 }
 
                 debugRawText.textContent = `[Gemini AI 模式]\n${result.rawText}`;
                 labelLayer.innerHTML = '';
-                const imgWidth = sourceImage.naturalWidth;
-                const imgHeight = sourceImage.naturalHeight;
+                const translationList = document.getElementById('translationList');
+                if (translationList) translationList.innerHTML = '';
 
                 for (const line of result.lines) {
+                    // 1. 建立圖片上的 AR 標籤
                     const label = document.createElement('div');
                     label.className = 'trans-label';
                     label.textContent = line.translated;
 
-                    // Gemini 回傳的是正規化座標 (0-1000)
-                    label.style.left = `${(line.box[1] / 1000) * 100}%`;
-                    label.style.top = `${(line.box[0] / 1000) * 100}%`;
-                    label.style.width = `${((line.box[3] - line.box[1]) / 1000) * 100}%`;
-                    label.style.height = `${((line.box[2] - line.box[0]) / 1000) * 100}%`;
+                    const box = line.box || [0, 0, 0, 0];
+                    label.style.top = `${box[0] / 10}%`;
+                    label.style.left = `${box[1] / 10}%`;
+                    label.style.width = `${(box[3] - box[1]) / 10}%`;
+                    label.style.height = `${(box[2] - box[0]) / 10}%`;
 
-                    label.onclick = (event) => {
-                        event.stopPropagation();
+                    label.onclick = (e) => {
+                        e.stopPropagation();
                         speakText(line.translated, 'zh-TW');
                     };
                     labelLayer.appendChild(label);
+
+                    // 2. 建立下方的文字清單
+                    if (translationList) {
+                        const item = document.createElement('div');
+                        item.className = 'list-item';
+                        item.innerHTML = `
+                            <div class="item-text">
+                                <div class="orig">${line.original}</div>
+                                <div class="trans">${line.translated}</div>
+                            </div>
+                            <button class="play-btn">🔊</button>
+                        `;
+                        item.onclick = () => speakText(line.translated, 'zh-TW');
+                        translationList.appendChild(item);
+                    }
                 }
             } else {
-                // --- 傳統 Tesseract.js Fallback ---
-                // 使用 Tesseract.js 的簡化用法，並確保明確指定日文
-                const result = await Tesseract.recognize(
-                    file,
-                    'jpn',
-                    {
-                        logger: m => {
-                            if (m.status === 'loading language traineddata') statusMessage.textContent = '載入辨識引擎...';
-                            if (m.status === 'recognizing text') statusMessage.textContent = `辨識中: ${Math.round(m.progress * 100)}%`;
+                // --- 傳統模式 Fallback ---
+                statusMessage.textContent = '使用本地辨識中...';
+                const result = await Tesseract.recognize(file, 'jpn', {
+                    logger: m => {
+                        if (m.status === 'recognizing text') {
+                            statusMessage.textContent = `辨識中: ${Math.round(m.progress * 100)}%`;
                         }
                     }
-                );
+                });
 
                 const data = result.data;
                 if (!data || !data.text || data.text.trim().length === 0) {
-                    showError('找不到文字。提示：您可以設定 Gemini API Key 來提升辨識力！');
+                    showError('找不到文字。');
                     return;
                 }
 
-                debugRawText.textContent = data.text;
+                debugRawText.textContent = `[本地模式]\n${data.text}`;
                 labelLayer.innerHTML = '';
-                const imgWidth = sourceImage.naturalWidth;
-                const imgHeight = sourceImage.naturalHeight;
+                const translationList = document.getElementById('translationList');
+                if (translationList) translationList.innerHTML = '<p style="color:#aaa; padding:10px;">(案：本地辨識不支援列表，請點圖)</p>';
 
                 for (const line of data.lines) {
                     const text = line.text.replace(/\s+/g, '').trim();
                     if (text.length < 1) continue;
+
                     const translated = await translateText(text, 'ja', 'zh-TW');
                     const label = document.createElement('div');
                     label.className = 'trans-label';
                     label.textContent = translated;
+
                     const { x0, y0, x1, y1 } = line.bbox;
+                    const imgWidth = sourceImage.naturalWidth;
+                    const imgHeight = sourceImage.naturalHeight;
+
                     label.style.left = `${(x0 / imgWidth) * 100}%`;
                     label.style.top = `${(y0 / imgHeight) * 100}%`;
                     label.style.width = `${((x1 - x0) / imgWidth) * 100}%`;
                     label.style.height = `${((y1 - y0) / imgHeight) * 100}%`;
+
                     label.onclick = (event) => {
                         event.stopPropagation();
                         speakText(translated, 'zh-TW');
@@ -302,10 +321,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     labelLayer.appendChild(label);
                 }
             }
-
-            statusMessage.textContent = '分析完畢';
-            addMessageToChat('[圖片翻譯]', '已更新為最新的辨識結果。', 'ja');
-
+            statusMessage.textContent = '辨識完畢';
         } catch (error) {
             console.error('OCR Error:', error);
             showError(`辨識失敗: ${error.message}`);
@@ -317,80 +333,98 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function callGeminiVision(file) {
         const base64Image = await fileToBase64(file);
+        statusMessage.textContent = '偵測 API 權限中...';
 
-        // v2.4 全面相容列表 (包括最新的 Gemini 2.0 系列)
-        const tryConfigs = [
-            { ver: 'v1beta', model: 'gemini-2.0-flash-exp' }, // 嘗試最新的 2.0
-            { ver: 'v1beta', model: 'gemini-1.5-flash' },     // 最常用的 1.5 Flash
-            { ver: 'v1', model: 'gemini-1.5-flash' },         // 穩定版 1.5 Flash
-            { ver: 'v1beta', model: 'gemini-1.5-flash-8b' },  // 輕量版
-            { ver: 'v1beta', model: 'gemini-1.5-pro' }        // Pro 版備援
-        ];
+        try {
+            // STEP 1: 先找出這組 Key 到底能用哪些型號
+            console.log('[v2.6] 正在向 Google 查詢您的可用模型...');
+            const modelsUrl = `https://generativelanguage.googleapis.com/v1beta/models?key=${GEMINI_API_KEY}`;
+            const mResponse = await fetch(modelsUrl);
+            const mData = await mResponse.json();
 
-        // 檢查 API Key 格式 (API Key 通常以 AIzaSy 開頭)
-        if (!GEMINI_API_KEY.startsWith('AIzaSy')) {
-            console.warn('警告: API Key 格式看起來不太正確 (正確的應該是 AIzaSy 開頭)。');
-        }
-
-        let lastError = '';
-        console.log(`開始進行 AI 辨識，Key 前四碼: ${GEMINI_API_KEY.substring(0, 4)}...`);
-
-        for (const config of tryConfigs) {
-            try {
-                console.log(`>>> 正在嘗試連線 ${config.model} (${config.ver})...`);
-                statusMessage.textContent = `AI 載入中: ${config.model}...`;
-
-                const url = `https://generativelanguage.googleapis.com/${config.ver}/models/${config.model}:generateContent?key=${GEMINI_API_KEY}`;
-
-                const prompt = `
-                    Analyze this menu or sign in Japanese. 
-                    Identify all Japanese text items and their locations.
-                    Return a JSON object with:
-                    1. "rawText": all text found.
-                    2. "lines": an array of objects, each with:
-                       "original": full Japanese line,
-                       "translated": Traditional Chinese translation,
-                       "box": [ymin, xmin, ymax, xmax] coordinates normalized to 1000.
-                    Strictly return ONLY JSON.
-                `;
-
-                const response = await fetch(url, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        contents: [{
-                            parts: [
-                                { text: prompt },
-                                { inline_data: { mime_type: file.type, data: base64Image.split(',')[1] } }
-                            ]
-                        }]
-                    })
-                });
-
-                if (response.ok) {
-                    const data = await response.json();
-                    if (!data.candidates || !data.candidates[0].content) {
-                        throw new Error('AI 回傳內容不完整');
-                    }
-                    const textResponse = data.candidates[0].content.parts[0].text;
-                    const startIdx = textResponse.indexOf('{');
-                    const endIdx = textResponse.lastIndexOf('}');
-                    if (startIdx === -1) throw new Error('AI 回應格式錯誤');
-                    const jsonStr = textResponse.substring(startIdx, endIdx + 1);
-                    console.log(`✅ 成功連線！使用的是 ${config.model}`);
-                    return JSON.parse(jsonStr);
-                } else {
-                    const errData = await response.json();
-                    lastError = errData.error ? errData.error.message : '連線逾時或被拒絕';
-                    console.log(`❌ ${config.model} 失敗: ${lastError}`);
-                }
-            } catch (e) {
-                lastError = e.message;
-                console.log(`❌ ${config.model} 錯誤: ${lastError}`);
+            if (!mData.models || mData.models.length === 0) {
+                throw new Error('此 API Key 找不到任何可用模型，請確認已在 Google AI Studio 開通權限。');
             }
-        }
 
-        throw new Error(`所有的 AI 模型都失敗了。\n最後一個錯誤訊息：${lastError}\n\n提示：請檢查 API Key 是否有複製完整？(應為 AIzaSy 開頭)`);
+            const availableNames = mData.models.map(m => m.name.replace('models/', ''));
+            console.log('您的權限清單:', availableNames);
+
+            // STEP 2: 從清單中找出適合「視覺辨識」的型號 (優先順序)
+            const candidates = [
+                'gemini-1.5-flash',
+                'gemini-2.0-flash-exp',
+                'gemini-1.5-flash-latest',
+                'gemini-1.5-flash-8b',
+                'gemini-1.5-pro'
+            ];
+
+            let bestModel = '';
+            for (const c of candidates) {
+                if (availableNames.includes(c)) {
+                    bestModel = c;
+                    break;
+                }
+            }
+
+            // 如果都沒在名單內，就硬抓清單裡第一個有 flash 字眼的，再不然就抓第一個
+            if (!bestModel) {
+                bestModel = availableNames.find(n => n.includes('flash')) || availableNames[0];
+            }
+
+            console.log(`🎯 自動選定最佳模型: ${bestModel}`);
+            statusMessage.textContent = `使用 AI 模型: ${bestModel}`;
+
+            // STEP 3: 使用選定的模型進行翻譯
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/${bestModel}:generateContent?key=${GEMINI_API_KEY}`;
+            const prompt = `
+                ACT AS A PRECISE OCR SCANNER. 
+                1. Identify all Japanese text in the image.
+                2. For each text item, find its PRECISE bounding box.
+                Return a JSON object:
+                {
+                  "rawText": "full text summary",
+                  "lines": [
+                    {
+                      "original": "Japanese text",
+                      "translated": "Traditional Chinese",
+                      "box": [ymin, xmin, ymax, xmax] 
+                    }
+                  ]
+                }
+                *Coordinates 0-1000.* RETURN ONLY JSON.
+            `;
+
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{
+                        parts: [
+                            { text: prompt },
+                            { inline_data: { mime_type: file.type, data: base64Image.split(',')[1] } }
+                        ]
+                    }]
+                })
+            });
+
+            const data = await response.json();
+            if (response.ok && data.candidates) {
+                const textResponse = data.candidates[0].content.parts[0].text;
+                const startIdx = textResponse.indexOf('{');
+                const endIdx = textResponse.lastIndexOf('}');
+                if (startIdx !== -1) {
+                    console.log('✅ AI 辨識成功！');
+                    return JSON.parse(textResponse.substring(startIdx, endIdx + 1));
+                }
+            }
+
+            const errMsg = data.error ? data.error.message : 'AI 回應不完整';
+            throw new Error(`${bestModel} 回報錯誤: ${errMsg}`);
+
+        } catch (e) {
+            console.error('Gemini 失敗:', e);
+            throw e;
+        }
     }
 
     function fileToBase64(file) {

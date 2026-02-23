@@ -196,14 +196,26 @@ document.addEventListener('DOMContentLoaded', () => {
         statusMessage.classList.add('recording');
 
         try {
-            // 使用 Tesseract.js 辨識並取得詳細座標 (blocks/lines)
-            // 嘗試調整優化參數以增加辨識率
-            const worker = await Tesseract.createWorker('jpn');
-            const { data } = await worker.recognize(file);
-            await worker.terminate();
+            // 使用 Tesseract.js 的簡化用法，並確保明確指定日文
+            // 簡化用法會自動處理 worker 的建立與銷毀
+            const result = await Tesseract.recognize(
+                file,
+                'jpn',
+                {
+                    logger: m => {
+                        if (m.status === 'loading tesseract core') statusMessage.textContent = '載入核心中...';
+                        if (m.status === 'loading language traineddata') statusMessage.textContent = '載入日文數據中 (約1MB)...';
+                        if (m.status === 'recognizing text') {
+                            statusMessage.textContent = `辨識中: ${Math.round(m.progress * 100)}%`;
+                        }
+                    }
+                }
+            );
 
-            if (!data.text.trim()) {
-                showError('圖片中找不到文字。');
+            const data = result.data;
+
+            if (!data || !data.text || data.text.trim().length === 0) {
+                showError('圖片辨識完成，但找不到任何日文文字。請確保圖片字體夠大且清晰。');
                 return;
             }
 
@@ -220,6 +232,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // 處理每一行文字
             for (const line of data.lines) {
                 const text = line.text.replace(/\s+/g, '').trim();
+                // 忽略過短或只有符號的內容
                 if (text.length < 1) continue;
 
                 // 翻譯這一行
@@ -251,7 +264,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         } catch (error) {
             console.error('OCR Error:', error);
-            showError('圖片辨識失敗。');
+            showError('辨識連線失敗或發生錯誤，請檢查您的網路連線並再試一次。');
         } finally {
             statusMessage.classList.remove('recording');
             imageInput.value = '';

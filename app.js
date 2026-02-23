@@ -1,6 +1,9 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // 版本標籤：v2.2 (切換至 v1 穩定版模型)
-    console.log('--- 翻譯助手 v2.2 ---');
+    const APP_VERSION = 'v2.2';
+    // 版本標籤
+    console.log(`--- 翻譯助手 ${APP_VERSION} ---`);
+    const versionDisplay = document.getElementById('versionDisplay');
+    if (versionDisplay) versionDisplay.textContent = `程式版本: ${APP_VERSION}`;
 
     const statusMessage = document.getElementById('statusMessage');
     const chatContainer = document.getElementById('chatContainer');

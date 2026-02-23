@@ -317,60 +317,67 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function callGeminiVision(file) {
         const base64Image = await fileToBase64(file);
-        // 切換至 v1 穩定版 URL
-        const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
-        console.log('嘗試呼叫 Google API (v1)...');
 
-        const prompt = `
-            Analyze this menu or sign in Japanese. 
-            Identify all Japanese text items and their locations.
-            Return a JSON object with:
-            1. "rawText": all text found.
-            2. "lines": an array of objects, each with:
-               "original": full Japanese line,
-               "translated": Traditional Chinese translation,
-               "box": [ymin, xmin, ymax, xmax] coordinates normalized to 1000.
-            Strictly return ONLY JSON.
-        `;
+        // v2.3 自動嘗試列表
+        const tryConfigs = [
+            { ver: 'v1beta', model: 'gemini-1.5-flash' },
+            { ver: 'v1', model: 'gemini-1.5-flash' },
+            { ver: 'v1beta', model: 'gemini-1.5-pro' }
+        ];
 
-        try {
-            const response = await fetch(url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    contents: [{
-                        parts: [
-                            { text: prompt },
-                            { inline_data: { mime_type: file.type, data: base64Image.split(',')[1] } }
-                        ]
-                    }]
-                })
-            });
+        let lastError = '';
 
-            if (!response.ok) {
-                const errData = await response.json();
-                const msg = errData.error ? errData.error.message : '未知連線錯誤';
-                throw new Error(`Google API 錯誤: ${msg}`);
+        for (const config of tryConfigs) {
+            try {
+                console.log(`嘗試連線 Google API (${config.ver} / ${config.model})...`);
+                const url = `https://generativelanguage.googleapis.com/${config.ver}/models/${config.model}:generateContent?key=${GEMINI_API_KEY}`;
+
+                const prompt = `
+                    Analyze this menu or sign in Japanese. 
+                    Identify all Japanese text items and their locations.
+                    Return a JSON object with:
+                    1. "rawText": all text found.
+                    2. "lines": an array of objects, each with:
+                       "original": full Japanese line,
+                       "translated": Traditional Chinese translation,
+                       "box": [ymin, xmin, ymax, xmax] coordinates normalized to 1000.
+                    Strictly return ONLY JSON.
+                `;
+
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{
+                            parts: [
+                                { text: prompt },
+                                { inline_data: { mime_type: file.type, data: base64Image.split(',')[1] } }
+                            ]
+                        }]
+                    })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    const textResponse = data.candidates[0].content.parts[0].text;
+                    const startIdx = textResponse.indexOf('{');
+                    const endIdx = textResponse.lastIndexOf('}');
+                    if (startIdx === -1) throw new Error('AI 回應格式不符');
+                    const jsonStr = textResponse.substring(startIdx, endIdx + 1);
+                    console.log(`成功連線！使用的備援模型: ${config.model}`);
+                    return JSON.parse(jsonStr);
+                } else {
+                    const errData = await response.json();
+                    lastError = errData.error ? errData.error.message : '連線失敗';
+                    console.warn(`[${config.model}] 嘗試失敗: ${lastError}`);
+                }
+            } catch (e) {
+                lastError = e.message;
+                console.warn(`[${config.model}] 發生錯誤: ${lastError}`);
             }
-
-            const data = await response.json();
-            const textResponse = data.candidates[0].content.parts[0].text;
-
-            // 更強大的 JSON 擷取邏輯：尋找第一個 { 和最後一個 }
-            const startIdx = textResponse.indexOf('{');
-            const endIdx = textResponse.lastIndexOf('}');
-
-            if (startIdx === -1 || endIdx === -1) {
-                console.error('Gemini raw response:', textResponse);
-                throw new Error('AI 回應格式錯誤，請再試一次。');
-            }
-
-            const jsonStr = textResponse.substring(startIdx, endIdx + 1);
-            return JSON.parse(jsonStr);
-        } catch (e) {
-            console.error('Gemini error:', e);
-            throw e;
         }
+
+        throw new Error(`嘗試過所有模型皆失敗。最後收到的報錯：${lastError}`);
     }
 
     function fileToBase64(file) {

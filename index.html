@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>日本旅遊即時翻譯助手</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container">
+        <header>
+            <h1>翻譯助手</h1>
+            <p class="status-message" id="statusMessage">準備就緒</p>
+        </header>
+
+        <main>
+            <div class="chat-container" id="chatContainer">
+                <!-- 翻譯結果會顯示在這裡 -->
+            </div>
+
+            <div class="controls">
+                <button id="btnSpeakZh" class="record-btn zh-btn">
+                    <span class="icon">🎤</span>
+                    <span class="text">我說中文<br><small>(Push to talk)</small></span>
+                </button>
+                <button id="btnSpeakJa" class="record-btn ja-btn">
+                    <span class="icon">🎤</span>
+                    <span class="text">對方說日文<br><small>(日本語を話す)</small></span>
+                </button>
+            </div>
+        </main>
+    </div>
+    <script src="app.js"></script>
+</body>
+</html>

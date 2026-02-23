@@ -198,13 +198,18 @@ main {
     background-color: var(--zh-hover);
 }
 
-.ja-btn {
-    background-color: var(--ja-color);
-}
-
 .ja-btn:active,
 .ja-btn.active {
     background-color: var(--ja-hover);
+}
+
+.camera-btn {
+    background-color: var(--camera-color);
+}
+
+.camera-btn:active,
+.camera-btn.active {
+    background-color: var(--camera-hover);
 }
 
 .icon {

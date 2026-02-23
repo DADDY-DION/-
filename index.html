@@ -30,9 +30,16 @@
                     <span class="icon">🎤</span>
                     <span class="text">對方說日文<br><small>(日本語を話す)</small></span>
                 </button>
+                <button id="btnCamera" class="record-btn camera-btn">
+                    <span class="icon">📷</span>
+                    <span class="text">圖片翻譯<br><small>(OCR)</small></span>
+                </button>
+                <input type="file" id="imageInput" accept="image/*" style="display: none;">
             </div>
         </main>
     </div>
+    <!-- Load Tesseract.js -->
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
     <script src="app.js"></script>
 </body>
 

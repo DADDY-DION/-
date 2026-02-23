@@ -168,6 +168,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const sourceImage = document.getElementById('sourceImage');
     const labelLayer = document.getElementById('labelLayer');
     const closeModal = document.getElementById('closeModal');
+    const debugRawText = document.getElementById('debugRawText');
 
     btnCamera.addEventListener('click', () => {
         imageInput.click();
@@ -176,6 +177,7 @@ document.addEventListener('DOMContentLoaded', () => {
     closeModal.addEventListener('click', () => {
         overlayModal.style.display = 'none';
         labelLayer.innerHTML = '';
+        debugRawText.textContent = '';
     });
 
     imageInput.addEventListener('change', async (e) => {
@@ -195,6 +197,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             // 使用 Tesseract.js 辨識並取得詳細座標 (blocks/lines)
+            // 嘗試調整優化參數以增加辨識率
             const worker = await Tesseract.createWorker('jpn');
             const { data } = await worker.recognize(file);
             await worker.terminate();
@@ -203,6 +206,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 showError('圖片中找不到文字。');
                 return;
             }
+
+            // 顯示原始文字供除錯
+            debugRawText.textContent = data.text;
 
             // 清除舊標籤
             labelLayer.innerHTML = '';

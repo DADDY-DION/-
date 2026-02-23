@@ -85,6 +85,28 @@ main {
     background-color: #fafafa;
 }
 
+.modal-info {
+    color: #ddd;
+    margin-top: 15px;
+    font-size: 0.9rem;
+    width: 100%;
+    text-align: center;
+}
+
+.debug-text {
+    margin-top: 8px;
+    padding: 10px;
+    background-color: rgba(255, 255, 255, 0.1);
+    border-radius: 5px;
+    font-family: monospace;
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 100px;
+    overflow-y: auto;
+    font-size: 0.8rem;
+    color: #aaa;
+}
+
 /* 訊息對話框樣式 */
 .message {
     max-width: 85%;

@@ -38,6 +38,21 @@
             </div>
         </main>
     </div>
+
+    <!-- 圖片覆蓋翻譯模態視窗 -->
+    <div id="overlayModal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn" id="closeModal">&times;</span>
+            <div id="imageWrapper" class="image-wrapper">
+                <img id="sourceImage" alt="來源圖片">
+                <div id="labelLayer" class="label-layer"></div>
+            </div>
+            <div class="modal-info">
+                <p>點擊翻譯標籤可聽語音</p>
+            </div>
+        </div>
+    </div>
+
     <!-- Load Tesseract.js -->
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
     <script src="app.js"></script>

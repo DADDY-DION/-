@@ -164,57 +164,91 @@ document.addEventListener('DOMContentLoaded', () => {
     // 圖片翻譯邏輯
     const btnCamera = document.getElementById('btnCamera');
     const imageInput = document.getElementById('imageInput');
+    const overlayModal = document.getElementById('overlayModal');
+    const sourceImage = document.getElementById('sourceImage');
+    const labelLayer = document.getElementById('labelLayer');
+    const closeModal = document.getElementById('closeModal');
 
     btnCamera.addEventListener('click', () => {
         imageInput.click();
+    });
+
+    closeModal.addEventListener('click', () => {
+        overlayModal.style.display = 'none';
+        labelLayer.innerHTML = '';
     });
 
     imageInput.addEventListener('change', async (e) => {
         const file = e.target.files[0];
         if (!file) return;
 
+        // 預覽圖片
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            sourceImage.src = event.target.result;
+            overlayModal.style.display = 'flex';
+        };
+        reader.readAsDataURL(file);
+
         statusMessage.textContent = '分析圖片中 (OCR)... 請稍候';
-        statusMessage.classList.add('recording'); // 借用動畫效果
+        statusMessage.classList.add('recording');
 
         try {
-            // 使用 Tesseract.js 辨識日文
-            const result = await Tesseract.recognize(
-                file,
-                'jpn', // 指定日文
-                {
-                    logger: m => {
-                        if (m.status === 'recognizing text') {
-                            statusMessage.textContent = `辨識中: ${Math.round(m.progress * 100)}%`;
-                        }
-                    }
-                }
-            );
+            // 使用 Tesseract.js 辨識並取得詳細座標 (blocks/lines)
+            const worker = await Tesseract.createWorker('jpn');
+            const { data } = await worker.recognize(file);
+            await worker.terminate();
 
-            // 清理辨識出的文字：日文辨識常會多出空格或換行，這會干擾翻譯
-            // 我們把所有空格和換行刪掉
-            const ocrText = result.data.text.replace(/\s+/g, '').trim();
-
-            if (!ocrText) {
-                showError('圖片中找不到文字，請再試一次。');
+            if (!data.text.trim()) {
+                showError('圖片中找不到文字。');
                 return;
             }
 
-            statusMessage.textContent = '辨識完成，正在翻譯...';
-            // 圖片辨識的一律視為日文轉中文
-            const translatedText = await translateText(ocrText, 'ja', 'zh-TW');
+            // 清除舊標籤
+            labelLayer.innerHTML = '';
 
-            addMessageToChat(`[圖片文字] ${ocrText}`, translatedText, 'ja');
-            statusMessage.textContent = '準備就緒';
+            // 取得圖片顯示的實際比例 (因為 CSS 可能縮放圖片)
+            const imgWidth = sourceImage.naturalWidth;
+            const imgHeight = sourceImage.naturalHeight;
 
-            // 朗讀翻譯結果
-            speakText(translatedText, 'zh-TW');
+            // 處理每一行文字
+            for (const line of data.lines) {
+                const text = line.text.replace(/\s+/g, '').trim();
+                if (text.length < 1) continue;
+
+                // 翻譯這一行
+                const translated = await translateText(text, 'ja', 'zh-TW');
+
+                // 建立覆蓋標籤
+                const label = document.createElement('div');
+                label.className = 'trans-label';
+                label.textContent = translated;
+
+                // 計算位置 (百分比單位，適應任何縮放)
+                const { x0, y0, x1, y1 } = line.bbox;
+                label.style.left = `${(x0 / imgWidth) * 100}%`;
+                label.style.top = `${(y0 / imgHeight) * 100}%`;
+                label.style.width = `${((x1 - x0) / imgWidth) * 100}%`;
+                label.style.height = `${((y1 - y0) / imgHeight) * 100}%`;
+
+                // 點擊朗讀
+                label.onclick = (event) => {
+                    event.stopPropagation();
+                    speakText(translated, 'zh-TW');
+                };
+
+                labelLayer.appendChild(label);
+            }
+
+            statusMessage.textContent = '分析完畢';
+            addMessageToChat('[圖片翻譯]', '已於視窗中顯示覆蓋內容。', 'ja');
 
         } catch (error) {
             console.error('OCR Error:', error);
-            showError('圖片辨識發生錯誤，請稍後再試。');
+            showError('圖片辨識失敗。');
         } finally {
             statusMessage.classList.remove('recording');
-            imageInput.value = ''; // 清空選擇
+            imageInput.value = '';
         }
     });
 });

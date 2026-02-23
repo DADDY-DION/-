@@ -1,6 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const APP_VERSION = 'v2.3';
-    // 版本標籤：v2.3 (自動嘗試多個模型版本)
+    const APP_VERSION = 'v2.4';
+    // 版本標籤：v2.4 (全面支援 Gemini 2.0 與 1.5)
     console.log(`--- 翻譯助手 ${APP_VERSION} ---`);
     const versionDisplay = document.getElementById('versionDisplay');
     if (versionDisplay) versionDisplay.textContent = `程式版本: ${APP_VERSION}`;
@@ -318,18 +318,28 @@ document.addEventListener('DOMContentLoaded', () => {
     async function callGeminiVision(file) {
         const base64Image = await fileToBase64(file);
 
-        // v2.3 自動嘗試列表
+        // v2.4 全面相容列表 (包括最新的 Gemini 2.0 系列)
         const tryConfigs = [
-            { ver: 'v1beta', model: 'gemini-1.5-flash' },
-            { ver: 'v1', model: 'gemini-1.5-flash' },
-            { ver: 'v1beta', model: 'gemini-1.5-pro' }
+            { ver: 'v1beta', model: 'gemini-2.0-flash-exp' }, // 嘗試最新的 2.0
+            { ver: 'v1beta', model: 'gemini-1.5-flash' },     // 最常用的 1.5 Flash
+            { ver: 'v1', model: 'gemini-1.5-flash' },         // 穩定版 1.5 Flash
+            { ver: 'v1beta', model: 'gemini-1.5-flash-8b' },  // 輕量版
+            { ver: 'v1beta', model: 'gemini-1.5-pro' }        // Pro 版備援
         ];
 
+        // 檢查 API Key 格式 (API Key 通常以 AIzaSy 開頭)
+        if (!GEMINI_API_KEY.startsWith('AIzaSy')) {
+            console.warn('警告: API Key 格式看起來不太正確 (正確的應該是 AIzaSy 開頭)。');
+        }
+
         let lastError = '';
+        console.log(`開始進行 AI 辨識，Key 前四碼: ${GEMINI_API_KEY.substring(0, 4)}...`);
 
         for (const config of tryConfigs) {
             try {
-                console.log(`嘗試連線 Google API (${config.ver} / ${config.model})...`);
+                console.log(`>>> 正在嘗試連線 ${config.model} (${config.ver})...`);
+                statusMessage.textContent = `AI 載入中: ${config.model}...`;
+
                 const url = `https://generativelanguage.googleapis.com/${config.ver}/models/${config.model}:generateContent?key=${GEMINI_API_KEY}`;
 
                 const prompt = `
@@ -359,25 +369,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (response.ok) {
                     const data = await response.json();
+                    if (!data.candidates || !data.candidates[0].content) {
+                        throw new Error('AI 回傳內容不完整');
+                    }
                     const textResponse = data.candidates[0].content.parts[0].text;
                     const startIdx = textResponse.indexOf('{');
                     const endIdx = textResponse.lastIndexOf('}');
-                    if (startIdx === -1) throw new Error('AI 回應格式不符');
+                    if (startIdx === -1) throw new Error('AI 回應格式錯誤');
                     const jsonStr = textResponse.substring(startIdx, endIdx + 1);
-                    console.log(`成功連線！使用的備援模型: ${config.model}`);
+                    console.log(`✅ 成功連線！使用的是 ${config.model}`);
                     return JSON.parse(jsonStr);
                 } else {
                     const errData = await response.json();
-                    lastError = errData.error ? errData.error.message : '連線失敗';
-                    console.warn(`[${config.model}] 嘗試失敗: ${lastError}`);
+                    lastError = errData.error ? errData.error.message : '連線逾時或被拒絕';
+                    console.log(`❌ ${config.model} 失敗: ${lastError}`);
                 }
             } catch (e) {
                 lastError = e.message;
-                console.warn(`[${config.model}] 發生錯誤: ${lastError}`);
+                console.log(`❌ ${config.model} 錯誤: ${lastError}`);
             }
         }
 
-        throw new Error(`嘗試過所有模型皆失敗。最後收到的報錯：${lastError}`);
+        throw new Error(`所有的 AI 模型都失敗了。\n最後一個錯誤訊息：${lastError}\n\n提示：請檢查 API Key 是否有複製完整？(應為 AIzaSy 開頭)`);
     }
 
     function fileToBase64(file) {

@@ -302,7 +302,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         } catch (error) {
             console.error('OCR Error:', error);
-            showError('發生錯誤。若是使用 Gemini，請檢查 API Key 是否正確。');
+            showError(`辨識失敗: ${error.message}`);
         } finally {
             statusMessage.classList.remove('recording');
             imageInput.value = '';
@@ -326,29 +326,34 @@ document.addEventListener('DOMContentLoaded', () => {
             Strictly return ONLY JSON.
         `;
 
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: [{
-                    parts: [
-                        { text: prompt },
-                        { inline_data: { mime_type: file.type, data: base64Image.split(',')[1] } }
-                    ]
-                }]
-            })
-        });
-
-        const data = await response.json();
-        // 嘗試從 Gemini 的回應中解構 JSON
         try {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{
+                        parts: [
+                            { text: prompt },
+                            { inline_data: { mime_type: file.type, data: base64Image.split(',')[1] } }
+                        ]
+                    }]
+                })
+            });
+
+            if (!response.ok) {
+                const errData = await response.json();
+                const msg = errData.error ? errData.error.message : '未知連線錯誤';
+                throw new Error(`Google API 錯誤: ${msg}`);
+            }
+
+            const data = await response.json();
             const textResponse = data.candidates[0].content.parts[0].text;
             // 移除 Markdown 代碼塊標籤如 ```json
             const jsonStr = textResponse.replace(/```json/g, '').replace(/```/g, '').trim();
             return JSON.parse(jsonStr);
         } catch (e) {
-            console.error('Gemini parse error:', e);
-            throw new Error('Gemini 回應解析失敗');
+            console.error('Gemini error:', e);
+            throw e; // 傳給外部處理
         }
     }
 

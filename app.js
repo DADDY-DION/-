@@ -190,7 +190,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             );
 
-            const ocrText = result.data.text.trim();
+            // 清理辨識出的文字：日文辨識常會多出空格或換行，這會干擾翻譯
+            // 我們把所有空格和換行刪掉
+            const ocrText = result.data.text.replace(/\s+/g, '').trim();
+
             if (!ocrText) {
                 showError('圖片中找不到文字，請再試一次。');
                 return;

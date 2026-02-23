@@ -309,10 +309,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // 呼叫 Gemini API 的核心邏輯
     async function callGeminiVision(file) {
         const base64Image = await fileToBase64(file);
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+        // 使用 v1 穩定版與最新的 flash 模型名稱
+        const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`;
 
         const prompt = `
             Analyze this menu or sign in Japanese. 

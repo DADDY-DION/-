@@ -1,4 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
+    // 版本標籤：v2.1 (修正 Gemini API URL)
+    console.log('--- 翻譯助手 v2.1 啟動中 ---');
+
     const statusMessage = document.getElementById('statusMessage');
     const chatContainer = document.getElementById('chatContainer');
     const btnSpeakZh = document.getElementById('btnSpeakZh');
@@ -311,8 +314,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function callGeminiVision(file) {
         const base64Image = await fileToBase64(file);
-        // 使用 v1 穩定版與最新的 flash 模型名稱
-        const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`;
+        // 使用 v1beta 版本並嘗試不同的模型識別碼
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+        console.log('正在呼叫 AI 辨識系統...');
 
         const prompt = `
             Analyze this menu or sign in Japanese. 

@@ -387,6 +387,43 @@ main {
 }
 
 /* 控制按鈕區塊 */
+.text-input-area {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 15px;
+    width: 100%;
+}
+
+#manualInput {
+    flex: 1;
+    padding: 12px 15px;
+    border: 1px solid #ddd;
+    border-radius: 25px;
+    font-size: 1.1rem;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+#manualInput:focus {
+    border-color: var(--zh-color);
+}
+
+.send-btn {
+    padding: 0 20px;
+    background-color: var(--zh-color);
+    color: white;
+    border: none;
+    border-radius: 25px;
+    font-weight: bold;
+    cursor: pointer;
+    font-size: 1rem;
+}
+
+.send-btn:active {
+    background-color: var(--zh-hover);
+    transform: scale(0.95);
+}
+
 .controls {
     display: flex;
     gap: 15px;

@@ -1,6 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const APP_VERSION = 'v3.3';
-    // 版本標籤：v3.3 (優化 AR 覆寫佈局：上方固圖，下方捲動)
+    const APP_VERSION = 'v3.5';
+    // 版本標籤：v3.5 (新增手打文字翻譯功能)
     console.log(`--- 翻譯助手 ${APP_VERSION} ---`);
     const versionDisplay = document.getElementById('versionDisplay');
     if (versionDisplay) versionDisplay.textContent = `程式版本: ${APP_VERSION}`;
@@ -33,6 +33,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const closeSettings = document.getElementById('closeSettings');
     const apiKeyInput = document.getElementById('apiKeyInput');
     const btnSaveSettings = document.getElementById('btnSaveSettings');
+    const manualInput = document.getElementById('manualInput');
+    const btnSendText = document.getElementById('btnSendText');
 
     btnSettings.onclick = () => {
         apiKeyInput.value = GEMINI_API_KEY;
@@ -48,6 +50,28 @@ document.addEventListener('DOMContentLoaded', () => {
         localStorage.setItem('GEMINI_API_KEY', GEMINI_API_KEY);
         settingsModal.style.display = 'none';
         alert('設定已儲存！');
+    };
+
+    // 手動文字輸入翻譯邏輯 (v3.5)
+    async function handleManualTranslation() {
+        const text = manualInput.value.trim();
+        if (!text) return;
+
+        manualInput.value = '';
+        statusMessage.textContent = '翻譯中...';
+
+        // 預設為中翻日 (旅遊中最常用)
+        const translatedText = await translateText(text, 'zh-TW', 'ja');
+        addMessageToChat(text, translatedText, 'zh');
+
+        statusMessage.textContent = '準備就緒';
+        // 翻譯完立即自動朗讀
+        speakText(translatedText, 'ja');
+    }
+
+    btnSendText.onclick = handleManualTranslation;
+    manualInput.onkeypress = (e) => {
+        if (e.key === 'Enter') handleManualTranslation();
     };
 
     // 初始化翻譯服務 (這裡先用一個免費的公開 API，實際應用可能需要替換為更穩定的服務)

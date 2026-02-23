@@ -20,8 +20,16 @@
         </header>
 
         <main>
-            <div class="chat-container" id="chatContainer">
-                <!-- 翻譯結果會顯示在這裡 -->
+            <div id="chatContainer" class="chat-container">
+                <div class="message ja">
+                    <div class="translated">您可以拍下日本菜單、招牌，或是直接對我說話，我也支援手打文字喔！</div>
+                </div>
+            </div>
+
+            <!-- 手動文字輸入區 (v3.5) -->
+            <div class="text-input-area">
+                <input type="text" id="manualInput" placeholder="輸入文字進行翻譯..." aria-label="手動輸入翻譯文字">
+                <button id="btnSendText" class="send-btn">傳送</button>
             </div>
 
             <div class="controls">

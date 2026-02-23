@@ -348,12 +348,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const data = await response.json();
             const textResponse = data.candidates[0].content.parts[0].text;
-            // 移除 Markdown 代碼塊標籤如 ```json
-            const jsonStr = textResponse.replace(/```json/g, '').replace(/```/g, '').trim();
+
+            // 更強大的 JSON 擷取邏輯：尋找第一個 { 和最後一個 }
+            const startIdx = textResponse.indexOf('{');
+            const endIdx = textResponse.lastIndexOf('}');
+
+            if (startIdx === -1 || endIdx === -1) {
+                console.error('Gemini raw response:', textResponse);
+                throw new Error('AI 回應格式錯誤，請再試一次。');
+            }
+
+            const jsonStr = textResponse.substring(startIdx, endIdx + 1);
             return JSON.parse(jsonStr);
         } catch (e) {
             console.error('Gemini error:', e);
-            throw e; // 傳給外部處理
+            throw e;
         }
     }
 

@@ -19,6 +19,30 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let currentSourceLang = '';
     let currentTargetLang = '';
+    let GEMINI_API_KEY = localStorage.getItem('GEMINI_API_KEY') || '';
+
+    // 設定視窗邏輯
+    const btnSettings = document.getElementById('btnSettings');
+    const settingsModal = document.getElementById('settingsModal');
+    const closeSettings = document.getElementById('closeSettings');
+    const apiKeyInput = document.getElementById('apiKeyInput');
+    const btnSaveSettings = document.getElementById('btnSaveSettings');
+
+    btnSettings.onclick = () => {
+        apiKeyInput.value = GEMINI_API_KEY;
+        settingsModal.style.display = 'flex';
+    };
+
+    closeSettings.onclick = () => {
+        settingsModal.style.display = 'none';
+    };
+
+    btnSaveSettings.onclick = () => {
+        GEMINI_API_KEY = apiKeyInput.value.trim();
+        localStorage.setItem('GEMINI_API_KEY', GEMINI_API_KEY);
+        settingsModal.style.display = 'none';
+        alert('設定已儲存！');
+    };
 
     // 初始化翻譯服務 (這裡先用一個免費的公開 API，實際應用可能需要替換為更穩定的服務)
     // 使用 MyMemory Translation API
@@ -192,82 +216,148 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         reader.readAsDataURL(file);
 
-        statusMessage.textContent = '分析圖片中 (OCR)... 請稍候';
+        statusMessage.textContent = '分析圖片中 (AI)... 請稍候';
         statusMessage.classList.add('recording');
 
         try {
-            // 使用 Tesseract.js 的簡化用法，並確保明確指定日文
-            // 簡化用法會自動處理 worker 的建立與銷毀
-            const result = await Tesseract.recognize(
-                file,
-                'jpn',
-                {
-                    logger: m => {
-                        if (m.status === 'loading tesseract core') statusMessage.textContent = '載入核心中...';
-                        if (m.status === 'loading language traineddata') statusMessage.textContent = '載入日文數據中 (約1MB)...';
-                        if (m.status === 'recognizing text') {
-                            statusMessage.textContent = `辨識中: ${Math.round(m.progress * 100)}%`;
+            if (GEMINI_API_KEY) {
+                // --- 使用強大的 Google Gemini AI ---
+                statusMessage.textContent = '呼叫 Google Gemini AI...';
+                const result = await callGeminiVision(file);
+
+                if (!result || result.lines.length === 0) {
+                    showError('Gemini 辨識不到文字。');
+                    return;
+                }
+
+                debugRawText.textContent = `[Gemini AI 模式]\n${result.rawText}`;
+                labelLayer.innerHTML = '';
+                const imgWidth = sourceImage.naturalWidth;
+                const imgHeight = sourceImage.naturalHeight;
+
+                for (const line of result.lines) {
+                    const label = document.createElement('div');
+                    label.className = 'trans-label';
+                    label.textContent = line.translated;
+
+                    // Gemini 回傳的是正規化座標 (0-1000)
+                    label.style.left = `${(line.box[1] / 1000) * 100}%`;
+                    label.style.top = `${(line.box[0] / 1000) * 100}%`;
+                    label.style.width = `${((line.box[3] - line.box[1]) / 1000) * 100}%`;
+                    label.style.height = `${((line.box[2] - line.box[0]) / 1000) * 100}%`;
+
+                    label.onclick = (event) => {
+                        event.stopPropagation();
+                        speakText(line.translated, 'zh-TW');
+                    };
+                    labelLayer.appendChild(label);
+                }
+            } else {
+                // --- 傳統 Tesseract.js Fallback ---
+                // 使用 Tesseract.js 的簡化用法，並確保明確指定日文
+                const result = await Tesseract.recognize(
+                    file,
+                    'jpn',
+                    {
+                        logger: m => {
+                            if (m.status === 'loading language traineddata') statusMessage.textContent = '載入辨識引擎...';
+                            if (m.status === 'recognizing text') statusMessage.textContent = `辨識中: ${Math.round(m.progress * 100)}%`;
                         }
                     }
+                );
+
+                const data = result.data;
+                if (!data || !data.text || data.text.trim().length === 0) {
+                    showError('找不到文字。提示：您可以設定 Gemini API Key 來提升辨識力！');
+                    return;
                 }
-            );
 
-            const data = result.data;
+                debugRawText.textContent = data.text;
+                labelLayer.innerHTML = '';
+                const imgWidth = sourceImage.naturalWidth;
+                const imgHeight = sourceImage.naturalHeight;
 
-            if (!data || !data.text || data.text.trim().length === 0) {
-                showError('圖片辨識完成，但找不到任何日文文字。請確保圖片字體夠大且清晰。');
-                return;
-            }
-
-            // 顯示原始文字供除錯
-            debugRawText.textContent = data.text;
-
-            // 清除舊標籤
-            labelLayer.innerHTML = '';
-
-            // 取得圖片顯示的實際比例 (因為 CSS 可能縮放圖片)
-            const imgWidth = sourceImage.naturalWidth;
-            const imgHeight = sourceImage.naturalHeight;
-
-            // 處理每一行文字
-            for (const line of data.lines) {
-                const text = line.text.replace(/\s+/g, '').trim();
-                // 忽略過短或只有符號的內容
-                if (text.length < 1) continue;
-
-                // 翻譯這一行
-                const translated = await translateText(text, 'ja', 'zh-TW');
-
-                // 建立覆蓋標籤
-                const label = document.createElement('div');
-                label.className = 'trans-label';
-                label.textContent = translated;
-
-                // 計算位置 (百分比單位，適應任何縮放)
-                const { x0, y0, x1, y1 } = line.bbox;
-                label.style.left = `${(x0 / imgWidth) * 100}%`;
-                label.style.top = `${(y0 / imgHeight) * 100}%`;
-                label.style.width = `${((x1 - x0) / imgWidth) * 100}%`;
-                label.style.height = `${((y1 - y0) / imgHeight) * 100}%`;
-
-                // 點擊朗讀
-                label.onclick = (event) => {
-                    event.stopPropagation();
-                    speakText(translated, 'zh-TW');
-                };
-
-                labelLayer.appendChild(label);
+                for (const line of data.lines) {
+                    const text = line.text.replace(/\s+/g, '').trim();
+                    if (text.length < 1) continue;
+                    const translated = await translateText(text, 'ja', 'zh-TW');
+                    const label = document.createElement('div');
+                    label.className = 'trans-label';
+                    label.textContent = translated;
+                    const { x0, y0, x1, y1 } = line.bbox;
+                    label.style.left = `${(x0 / imgWidth) * 100}%`;
+                    label.style.top = `${(y0 / imgHeight) * 100}%`;
+                    label.style.width = `${((x1 - x0) / imgWidth) * 100}%`;
+                    label.style.height = `${((y1 - y0) / imgHeight) * 100}%`;
+                    label.onclick = (event) => {
+                        event.stopPropagation();
+                        speakText(translated, 'zh-TW');
+                    };
+                    labelLayer.appendChild(label);
+                }
             }
 
             statusMessage.textContent = '分析完畢';
-            addMessageToChat('[圖片翻譯]', '已於視窗中顯示覆蓋內容。', 'ja');
+            addMessageToChat('[圖片翻譯]', '已更新為最新的辨識結果。', 'ja');
 
         } catch (error) {
             console.error('OCR Error:', error);
-            showError('辨識連線失敗或發生錯誤，請檢查您的網路連線並再試一次。');
+            showError('發生錯誤。若是使用 Gemini，請檢查 API Key 是否正確。');
         } finally {
             statusMessage.classList.remove('recording');
             imageInput.value = '';
         }
     });
+
+    // 呼叫 Gemini API 的核心邏輯
+    async function callGeminiVision(file) {
+        const base64Image = await fileToBase64(file);
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+
+        const prompt = `
+            Analyze this menu or sign in Japanese. 
+            Identify all Japanese text items and their locations.
+            Return a JSON object with:
+            1. "rawText": all text found.
+            2. "lines": an array of objects, each with:
+               "original": full Japanese line,
+               "translated": Traditional Chinese translation,
+               "box": [ymin, xmin, ymax, xmax] coordinates normalized to 1000.
+            Strictly return ONLY JSON.
+        `;
+
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{
+                    parts: [
+                        { text: prompt },
+                        { inline_data: { mime_type: file.type, data: base64Image.split(',')[1] } }
+                    ]
+                }]
+            })
+        });
+
+        const data = await response.json();
+        // 嘗試從 Gemini 的回應中解構 JSON
+        try {
+            const textResponse = data.candidates[0].content.parts[0].text;
+            // 移除 Markdown 代碼塊標籤如 ```json
+            const jsonStr = textResponse.replace(/```json/g, '').replace(/```/g, '').trim();
+            return JSON.parse(jsonStr);
+        } catch (e) {
+            console.error('Gemini parse error:', e);
+            throw new Error('Gemini 回應解析失敗');
+        }
+    }
+
+    function fileToBase64(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = error => reject(error);
+        });
+    }
 });

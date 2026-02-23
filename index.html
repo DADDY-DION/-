@@ -12,7 +12,10 @@
 <body>
     <div class="app-container">
         <header>
-            <h1>翻譯助手</h1>
+            <div class="header-content">
+                <h1>翻譯助手</h1>
+                <button id="btnSettings" class="settings-btn" title="設定 API Key">⚙️</button>
+            </div>
             <p class="status-message" id="statusMessage">準備就緒</p>
         </header>
 
@@ -51,6 +54,23 @@
                 <p>點擊標籤可聽語音 | 下方為辨識出的原始日文：</p>
                 <div id="debugRawText" class="debug-text"></div>
             </div>
+        </div>
+    </div>
+
+    <!-- API Key 設定模態視窗 -->
+    <div id="settingsModal" class="modal">
+        <div class="modal-content settings-content">
+            <span class="close-btn" id="closeSettings">&times;</span>
+            <h2>系統設定</h2>
+            <div class="setting-item">
+                <label for="apiKeyInput">Google Gemini API Key:</label>
+                <input type="password" id="apiKeyInput" placeholder="在此貼上您的 API Key">
+                <p class="help-text">
+                    <a href="https://aistudio.google.com/app/apikey" target="_blank">點此前往 Google AI Studio 免費取得 Key</a>
+                </p>
+            </div>
+            <button id="btnSaveSettings" class="save-btn">儲存設定</button>
+            <p class="security-note">⚠️ 金鑰僅儲存於您的手機瀏覽器中，不會上傳至任何伺服器。</p>
         </div>
     </div>
 

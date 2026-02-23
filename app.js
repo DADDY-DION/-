@@ -1,6 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const APP_VERSION = 'v2.2';
-    // 版本標籤
+    const APP_VERSION = 'v2.3';
+    // 版本標籤：v2.3 (自動嘗試多個模型版本)
     console.log(`--- 翻譯助手 ${APP_VERSION} ---`);
     const versionDisplay = document.getElementById('versionDisplay');
     if (versionDisplay) versionDisplay.textContent = `程式版本: ${APP_VERSION}`;

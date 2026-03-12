@@ -1,14 +1,13 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const APP_VERSION = 'v5.2';
-    // 版本標籤：v5.2 (動態目標語言切換：日文/英文)
+    const APP_VERSION = 'v5.6';
+    // 版本標籤：v5.6 (修復圖片對齊並整合進度顯示)
     console.log(`--- 翻譯助手 ${APP_VERSION} ---`);
     const versionDisplay = document.getElementById('versionDisplay');
     if (versionDisplay) versionDisplay.textContent = `程式版本: ${APP_VERSION}`;
 
-    const statusMessage = document.getElementById('statusMessage');
-    const chatContainer = document.getElementById('chatContainer');
-    const btnSpeakZh = document.getElementById('btnSpeakZh');
     const btnSpeakJa = document.getElementById('btnSpeakJa');
+    const modalStatus = document.getElementById('modalStatus');
+    const statusMessage = document.getElementById('statusMessage');
 
     // 檢查瀏覽器支援
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -168,8 +167,20 @@ document.addEventListener('DOMContentLoaded', () => {
         msgDiv.className = 'message error';
         msgDiv.textContent = msg;
         chatContainer.appendChild(msgDiv);
-        statusMessage.textContent = '發生錯誤';
         statusMessage.classList.remove('recording');
+    }
+
+    // 更新各處狀態 (v5.6)
+    function updateStatus(msg, isRecording = false) {
+        if (statusMessage) {
+            statusMessage.textContent = msg;
+            if (isRecording) statusMessage.classList.add('recording');
+            else statusMessage.classList.remove('recording');
+        }
+        if (modalStatus) {
+            modalStatus.textContent = msg;
+            modalStatus.style.display = 'block';
+        }
     }
 
     // 處理語音辨識結果
@@ -282,7 +293,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const file = e.target.files[0];
         if (!file) return;
 
-        // 預覽圖片
+        // 預覽圖片 (v5.6 恢復立即顯示，配合內部進度)
         const reader = new FileReader();
         reader.onload = (event) => {
             sourceImage.src = event.target.result;
@@ -290,17 +301,17 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         reader.readAsDataURL(file);
 
-        statusMessage.textContent = '分析圖片中 (AI)... 請稍候';
-        statusMessage.classList.add('recording');
+        updateStatus('[1/4] 正在解析圖片內容...', true);
 
         try {
             if (GEMINI_API_KEY) {
                 // --- [優先] 使用 Google Gemini AI (v3.0 雙模式) ---
-                statusMessage.textContent = '正在呼叫 Google Gemini AI...';
+                updateStatus('正在呼叫 Google Gemini AI...');
                 const result = await callGeminiVision(file);
 
                 if (!result || result.lines.length === 0) {
                     showError('哎呀，AI 辨識不到文字。');
+                    if (modalStatus) modalStatus.textContent = '辨識不到文字。';
                     return;
                 }
 
@@ -339,17 +350,19 @@ document.addEventListener('DOMContentLoaded', () => {
                             <button class="play-btn">🔊</button>
                         `;
                         item.onclick = () => speakText(line.translated, 'zh-TW');
-                        translationList.appendChild(item);
+                        labelLayer.appendChild(label);
                     }
-                }
+                } // 結束 for 迴圈
+                updateStatus('辨識成功');
+                if (modalStatus) modalStatus.style.display = 'none'; // 完成後隱藏進度條
             } else {
                 // --- 傳統模式 Fallback ---
                 const ocrLang = MAIN_TARGET_LANG === 'ja' ? 'jpn' : 'eng';
-                statusMessage.textContent = `使用本地辨識 (${ocrLang})...`;
+                updateStatus(`使用本地辨識 (${ocrLang})...`, true);
                 const result = await Tesseract.recognize(file, ocrLang, {
                     logger: m => {
                         if (m.status === 'recognizing text') {
-                            statusMessage.textContent = `辨識中: ${Math.round(m.progress * 100)}%`;
+                            updateStatus(`辨識中: ${Math.round(m.progress * 100)}%`, true);
                         }
                     }
                 });
@@ -389,8 +402,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     };
                     labelLayer.appendChild(label);
                 }
+                updateStatus('辨識完成');
+                if (modalStatus) modalStatus.style.display = 'none';
             }
-            statusMessage.textContent = '辨識完畢';
+            updateStatus('辨識完畢');
         } catch (error) {
             console.error('OCR Error:', error);
             showError(`辨識失敗: ${error.message}`);
@@ -400,13 +415,24 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // 將檔案轉換為 Base64 字串的工具函式 (v5.4 修復)
+    function fileToBase64(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = error => reject(error);
+        });
+    }
+
     async function callGeminiVision(file) {
+        updateStatus('[1/4] 正在解析圖片內容...', true);
         const base64Image = await fileToBase64(file);
-        statusMessage.textContent = '偵測 API 權限中...';
 
         try {
             // STEP 1: 先找出這組 Key 到底能用哪些型號
             console.log('[v2.6] 正在向 Google 查詢您的可用模型...');
+            updateStatus('[2/4] 正在確認 API 模型權限...', true);
             const modelsUrl = `https://generativelanguage.googleapis.com/v1beta/models?key=${GEMINI_API_KEY}`;
             const mResponse = await fetch(modelsUrl);
             const mData = await mResponse.json();
@@ -441,7 +467,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             console.log(`🎯 自動選定最佳模型: ${bestModel}`);
-            statusMessage.textContent = `使用 AI 模型: ${bestModel}`;
+            updateStatus(`[3/4] 準備發送圖片至 ${bestModel}...`, true);
 
             // STEP 3: 使用選定的模型進行翻譯
             const url = `https://generativelanguage.googleapis.com/v1beta/models/${bestModel}:generateContent?key=${GEMINI_API_KEY}`;
@@ -463,6 +489,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     *Coordinates 0-1000.* RETURN ONLY JSON.
                 `;
+            updateStatus(`[4/4] AI 正在解析翻譯 (${targetName})...`, true);
 
             const response = await fetch(url, {
                 method: 'POST',

@@ -13,7 +13,10 @@
     <div class="app-container">
         <header>
             <div class="header-content">
-                <h1>翻譯助手</h1>
+                <div class="header-left">
+                    <button id="btnToolbox" class="settings-btn" title="旅遊工具箱">🧳</button>
+                    <h1>翻譯助手</h1>
+                </div>
                 <button id="btnSettings" class="settings-btn" title="設定 API Key">⚙️</button>
             </div>
             <p class="status-message" id="statusMessage">準備就緒</p>
@@ -39,11 +42,11 @@
                 </button>
                 <button id="btnSpeakJa" class="record-btn ja-btn">
                     <span class="icon">🎤</span>
-                    <span class="text">對方說日文<br><small>(日本語を話す)</small></span>
+                    <span id="btnSpeakJaText" class="text">對方說日文<br><small>(日本語を話す)</small></span>
                 </button>
                 <button id="btnCamera" class="record-btn camera-btn">
                     <span class="icon">📷</span>
-                    <span class="text">圖片翻譯<br><small>(OCR)</small></span>
+                    <span id="btnCameraText" class="text">圖片翻譯<br><small>(OCR)</small></span>
                 </button>
                 <input type="file" id="imageInput" accept="image/*" style="display: none;">
             </div>
@@ -66,6 +69,76 @@
         </div>
     </div>
 
+    <!-- 旅遊工具箱模態視窗 (v4.0) -->
+    <div id="toolboxModal" class="modal">
+        <div class="modal-content toolbox-content">
+            <span class="close-btn" id="closeToolbox">&times;</span>
+            <div class="toolbox-tabs">
+                <button class="tab-btn active" data-tab="phrases">常用的日文</button>
+                <button class="tab-btn" data-tab="emergency">救急卡</button>
+                <button class="tab-btn" data-tab="exchange">匯率計算</button>
+                <button class="tab-btn" data-tab="history">翻譯歷史</button>
+            </div>
+
+            <!-- 常用語面板 -->
+            <div id="phrasesPanel" class="tab-panel active">
+                <div class="q-phrases-row">
+                    <button class="phrase-btn">請問多少錢？</button>
+                    <button class="phrase-btn">我可以試穿嗎？</button>
+                    <button class="phrase-btn">這是不含稅的價格嗎？</button>
+                    <button class="phrase-btn">請問廁所在哪裡？</button>
+                    <button class="phrase-btn">我要退稅。</button>
+                </div>
+                <div class="q-phrases-row">
+                    <button class="phrase-btn">這個很好吃！</button>
+                    <button class="phrase-btn">請給我結帳。</button>
+                    <button class="phrase-btn">我不吃芥末。</button>
+                    <button class="phrase-btn">最近的車站在哪？</button>
+                </div>
+            </div>
+
+            <!-- 救急卡面板 -->
+            <div id="emergencyPanel" class="tab-panel">
+                <div class="emergency-form">
+                    <label>我的姓名 (Name)</label>
+                    <input type="text" id="infoName" placeholder="例如：王小明">
+                    <label>過敏/藥物史 (Allergies/Meds)</label>
+                    <textarea id="infoMedical" placeholder="例如：對阿斯匹靈過敏"></textarea>
+                    <label>緊急聯絡電話 (Emergency Contact)</label>
+                    <input type="tel" id="infoPhone" placeholder="例如：+886...">
+                    <button id="btnSaveEmergency" class="save-btn">儲存資訊</button>
+                </div>
+                <div class="emergency-preview" id="emergencyPreview">
+                    <!-- 預覽內容 -->
+                </div>
+            </div>
+
+            <!-- 匯率計算面板 -->
+            <div id="exchangePanel" class="tab-panel">
+                <div class="exchange-container">
+                    <div class="exchange-row">
+                        <input type="number" id="twdAmount" placeholder="台幣 (TWD)">
+                        <span>➔</span>
+                        <input type="number" id="jpyAmount" placeholder="日幣 (JPY)">
+                    </div>
+                    <p class="exchange-rate" id="currentRateDisp">匯率讀取中...</p>
+                    <button id="btnRefreshRate" class="save-btn">更新匯率</button>
+                </div>
+            </div>
+
+            <!-- 歷史紀錄面板 -->
+            <div id="historyPanel" class="tab-panel">
+                <div class="history-list" id="historyList">
+                    <p style="color:#888; text-align:center;">尚無歷史紀錄</p>
+                </div>
+                <button id="btnClearHistory" class="save-btn"
+                    style="background-color:#e74c3c; margin-top:10px;">清除所有紀錄</button>
+            </div>
+
+            <div id="versionDisplay" class="version-tag"></div>
+        </div>
+    </div>
+
     <!-- API Key 設定模態視窗 -->
     <div id="settingsModal" class="modal">
         <div class="modal-content settings-content">
@@ -78,9 +151,16 @@
                     <a href="https://aistudio.google.com/app/apikey" target="_blank">點此前往 Google AI Studio 免費取得 Key</a>
                 </p>
             </div>
+            <div class="setting-item">
+                <label for="targetLangInput">主要翻譯目標語言:</label>
+                <select id="targetLangInput"
+                    style="width:100%; padding:12px; border-radius:8px; border:1px solid #ddd; font-size:1rem;">
+                    <option value="ja">日文 (Japanese)</option>
+                    <option value="en">英文 (English)</option>
+                </select>
+            </div>
             <button id="btnSaveSettings" class="save-btn">儲存設定</button>
             <p class="security-note">⚠️ 金鑰僅儲存於您的手機瀏覽器中，不會上傳至任何伺服器。</p>
-            <div id="versionDisplay" class="version-tag"></div>
         </div>
     </div>
 

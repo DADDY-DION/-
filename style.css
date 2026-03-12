@@ -62,6 +62,11 @@ header {
     padding: 5px;
 }
 
+#btnToolbox {
+    left: 0;
+    right: auto;
+}
+
 .settings-btn:hover {
     opacity: 1;
 }
@@ -386,7 +391,121 @@ main {
     text-align: center;
 }
 
-/* 控制按鈕區塊 */
+/* 常用語快捷列 (v4.0) */
+.q-phrases-row {
+    width: 100%;
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding: 5px 0 10px 0;
+    margin-top: -5px;
+    scrollbar-width: none;
+    /* Firefox */
+}
+
+.q-phrases-row::-webkit-scrollbar {
+    display: none;
+    /* Chrome/Safari */
+}
+
+.phrase-btn {
+    flex-shrink: 0;
+    padding: 8px 16px;
+    background-color: white;
+    border: 1px solid #ddd;
+    border-radius: 20px;
+    color: #333;
+    font-size: 0.95rem;
+    font-weight: bold;
+    cursor: pointer;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.phrase-btn:active {
+    background-color: #f0f0f0;
+    transform: scale(0.95);
+}
+
+/* 工具箱模態視窗樣式 */
+.toolbox-content {
+    max-height: 85vh;
+}
+
+.toolbox-tabs {
+    display: flex;
+    width: 100%;
+    border-bottom: 2px solid #333;
+    margin-bottom: 20px;
+}
+
+.tab-btn {
+    flex: 1;
+    padding: 12px;
+    background: none;
+    border: none;
+    color: #888;
+    font-size: 1rem;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.tab-btn.active {
+    color: var(--zh-color);
+    border-bottom: 3px solid var(--zh-color);
+}
+
+.tab-panel {
+    display: none;
+    width: 100%;
+}
+
+.tab-panel.active {
+    display: block;
+}
+
+/* 緊急卡表單 */
+.emergency-form {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.emergency-form label {
+    font-size: 0.9rem;
+    color: #aaa;
+    margin-bottom: -5px;
+}
+
+.emergency-form textarea {
+    height: 60px;
+    padding: 10px;
+    border-radius: 8px;
+    background-color: #222;
+    border: 1px solid #444;
+    color: white;
+}
+
+.emergency-preview {
+    background-color: #fff;
+    color: #000;
+    border-radius: 10px;
+    padding: 20px;
+}
+
+.exchange-rate {
+    margin: 15px 0;
+    font-size: 1.2rem;
+    color: #f1c40f;
+    text-align: center;
+}
+
+.history-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
 .text-input-area {
     display: flex;
     gap: 10px;

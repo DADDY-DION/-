@@ -1,6 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const APP_VERSION = 'v3.5';
-    // 版本標籤：v3.5 (新增手打文字翻譯功能)
+    const APP_VERSION = 'v5.2';
+    // 版本標籤：v5.2 (動態目標語言切換：日文/英文)
     console.log(`--- 翻譯助手 ${APP_VERSION} ---`);
     const versionDisplay = document.getElementById('versionDisplay');
     if (versionDisplay) versionDisplay.textContent = `程式版本: ${APP_VERSION}`;
@@ -12,20 +12,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 檢查瀏覽器支援
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    let recognition = null;
+
     if (!SpeechRecognition) {
         showError('您的瀏覽器不支援語音辨識。請使用 Google Chrome 或 Safari。');
         btnSpeakZh.disabled = true;
         btnSpeakJa.disabled = true;
         return;
+    } else {
+        recognition = new SpeechRecognition();
+        recognition.continuous = false; // 每次對話結束就停止
+        recognition.interimResults = false; // 只取最終結果
     }
-
-    let recognition = new SpeechRecognition();
-    recognition.continuous = false; // 每次對話結束就停止
-    recognition.interimResults = false; // 只取最終結果
 
     let currentSourceLang = '';
     let currentTargetLang = '';
     let GEMINI_API_KEY = localStorage.getItem('GEMINI_API_KEY') || '';
+    let MAIN_TARGET_LANG = localStorage.getItem('MAIN_TARGET_LANG') || 'ja';
 
     // 設定視窗邏輯
     const btnSettings = document.getElementById('btnSettings');
@@ -38,6 +41,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     btnSettings.onclick = () => {
         apiKeyInput.value = GEMINI_API_KEY;
+        document.getElementById('targetLangInput').value = MAIN_TARGET_LANG;
         settingsModal.style.display = 'flex';
     };
 
@@ -47,10 +51,27 @@ document.addEventListener('DOMContentLoaded', () => {
 
     btnSaveSettings.onclick = () => {
         GEMINI_API_KEY = apiKeyInput.value.trim();
+        MAIN_TARGET_LANG = document.getElementById('targetLangInput').value;
         localStorage.setItem('GEMINI_API_KEY', GEMINI_API_KEY);
+        localStorage.setItem('MAIN_TARGET_LANG', MAIN_TARGET_LANG);
+        updateButtonsUI(); // 更新按鈕文字 (v5.2)
         settingsModal.style.display = 'none';
         alert('設定已儲存！');
     };
+
+    // 更新按鈕 UI 文字函式 (v5.2)
+    function updateButtonsUI() {
+        const btnSpeakJaText = document.getElementById('btnSpeakJaText');
+        const btnCameraText = document.getElementById('btnCameraText');
+        if (MAIN_TARGET_LANG === 'ja') {
+            if (btnSpeakJaText) btnSpeakJaText.innerHTML = '對方說日文<br><small>(日本語を話す)</small>';
+            if (btnCameraText) btnCameraText.innerHTML = '圖片翻譯<br><small>(OCR/日文)</small>';
+        } else {
+            if (btnSpeakJaText) btnSpeakJaText.innerHTML = '對方說英文<br><small>(Speak English)</small>';
+            if (btnCameraText) btnCameraText.innerHTML = '圖片翻譯<br><small>(OCR/英文)</small>';
+        }
+    }
+    updateButtonsUI(); // 初始化執行一次
 
     // 手動文字輸入翻譯邏輯 (v3.5)
     async function handleManualTranslation() {
@@ -60,13 +81,13 @@ document.addEventListener('DOMContentLoaded', () => {
         manualInput.value = '';
         statusMessage.textContent = '翻譯中...';
 
-        // 預設為中翻日 (旅遊中最常用)
-        const translatedText = await translateText(text, 'zh-TW', 'ja');
+        // 根據設定決定目標語言 (v5.1)
+        const translatedText = await translateText(text, 'zh-TW', MAIN_TARGET_LANG);
         addMessageToChat(text, translatedText, 'zh');
 
         statusMessage.textContent = '準備就緒';
         // 翻譯完立即自動朗讀
-        speakText(translatedText, 'ja');
+        speakText(translatedText, MAIN_TARGET_LANG);
     }
 
     btnSendText.onclick = handleManualTranslation;
@@ -98,7 +119,9 @@ document.addEventListener('DOMContentLoaded', () => {
     function speakText(text, lang) {
         if ('speechSynthesis' in window) {
             const utterance = new SpeechSynthesisUtterance(text);
-            utterance.lang = lang === 'ja' ? 'ja-JP' : 'zh-TW';
+            if (lang === 'ja') utterance.lang = 'ja-JP';
+            else if (lang === 'en') utterance.lang = 'en-US';
+            else utterance.lang = 'zh-TW';
             // 稍微放慢語速，讓長輩或對方聽得更清楚
             utterance.rate = 0.9;
             window.speechSynthesis.speak(utterance);
@@ -108,6 +131,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // 更新 UI 顯示對話
     function addMessageToChat(originalText, translatedText, type) {
         const msgDiv = document.createElement('div');
+        // type: zh, ja, en
         msgDiv.className = `message ${type}`;
 
         const origDiv = document.createElement('div');
@@ -123,7 +147,10 @@ document.addEventListener('DOMContentLoaded', () => {
         replayBtn.innerHTML = '🔊';
         replayBtn.title = '重新播放';
         replayBtn.onclick = () => {
-            const targetLang = type === 'zh' ? 'ja' : 'zh-TW';
+            let targetLang = 'zh-TW';
+            if (type === 'zh') targetLang = MAIN_TARGET_LANG; // 使用設定的語言 (v5.1)
+            else if (type === 'ja') targetLang = 'zh-TW';
+            else if (type === 'en') targetLang = 'ja';
             speakText(translatedText, targetLang);
         };
 
@@ -146,51 +173,67 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // 處理語音辨識結果
-    recognition.onresult = async (event) => {
-        const text = event.results[0][0].transcript;
-        statusMessage.textContent = '辨識完成，準備翻譯...';
-        statusMessage.classList.remove('recording');
+    if (recognition) {
+        recognition.onresult = async (event) => {
+            const text = event.results[0][0].transcript;
+            statusMessage.textContent = '辨識完成，準備翻譯...';
+            statusMessage.classList.remove('recording');
 
-        // 決定翻譯方向
-        let langCodeSource = currentSourceLang === 'zh-TW' ? 'zh-TW' : 'ja';
-        let langCodeTarget = currentSourceLang === 'zh-TW' ? 'ja' : 'zh-TW';
-        let uiType = currentSourceLang === 'zh-TW' ? 'zh' : 'ja';
+            // 決定翻譯方向
+            let langCodeSource = currentSourceLang;
+            let langCodeTarget = '';
+            let uiType = '';
 
-        const translatedText = await translateText(text, langCodeSource, langCodeTarget);
+            if (langCodeSource === 'zh-TW') {
+                langCodeTarget = MAIN_TARGET_LANG;
+                uiType = 'zh';
+            } else {
+                // 如果不是中文，則代表是「對方說話」(可能是日/英)，統一翻譯回中文
+                langCodeTarget = 'zh-TW';
+                uiType = (langCodeSource === 'ja-JP') ? 'ja' : 'en';
+            }
 
-        addMessageToChat(text, translatedText, uiType);
-        statusMessage.textContent = '準備就緒';
+            const translatedText = await translateText(text, langCodeSource, langCodeTarget);
 
-        // 朗讀翻譯結果
-        speakText(translatedText, langCodeTarget);
-    };
+            addMessageToChat(text, translatedText, uiType);
+            statusMessage.textContent = '準備就緒';
 
-    recognition.onerror = (event) => {
-        console.error('Speech recognition error', event.error);
-        statusMessage.classList.remove('recording');
+            // 朗讀翻譯結果
+            speakText(translatedText, langCodeTarget);
+        };
+    }
 
-        let errorMsg = '無法辨識語音。';
-        if (event.error === 'not-allowed') {
-            errorMsg = '請允許使用麥克風權限！';
-        } else if (event.error === 'no-speech') {
-            errorMsg = '沒有偵測到聲音，請再說一次。';
-        }
+    if (recognition) {
+        recognition.onerror = (event) => {
+            console.error('Speech recognition error', event.error);
+            statusMessage.classList.remove('recording');
 
-        showError(errorMsg);
+            let errorMsg = '無法辨識語音。';
+            if (event.error === 'not-allowed') {
+                errorMsg = '請允許使用麥克風權限！';
+            } else if (event.error === 'no-speech') {
+                errorMsg = '沒有偵測到聲音，請再說一次。';
+            }
 
-        // 恢復按鈕狀態
-        btnSpeakZh.classList.remove('active');
-        btnSpeakJa.classList.remove('active');
-    };
+            showError(errorMsg);
 
-    recognition.onend = () => {
-        statusMessage.classList.remove('recording');
-        btnSpeakZh.classList.remove('active');
-        btnSpeakJa.classList.remove('active');
-    };
+            // 恢復按鈕狀態
+            btnSpeakZh.classList.remove('active');
+            btnSpeakJa.classList.remove('active');
+        };
+    }
+
+    if (recognition) {
+        recognition.onend = () => {
+            statusMessage.classList.remove('recording');
+            btnSpeakZh.classList.remove('active');
+            btnSpeakJa.classList.remove('active');
+        };
+    }
 
     // 綁定按鈕事件
     function startRecording(lang, langCode, btnElement) {
+        if (!recognition) return;
         currentSourceLang = lang;
         recognition.lang = lang;
 
@@ -211,8 +254,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     btnSpeakJa.addEventListener('click', () => {
-        // iOS 系統對於 ja-JP 的支援度比較好，Windows 也是
-        startRecording('ja-JP', 'ja', btnSpeakJa);
+        const lang = MAIN_TARGET_LANG === 'ja' ? 'ja-JP' : 'en-US';
+        const type = MAIN_TARGET_LANG === 'ja' ? 'ja' : 'en';
+        startRecording(lang, type, btnSpeakJa);
     });
 
     // 圖片翻譯邏輯
@@ -300,8 +344,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             } else {
                 // --- 傳統模式 Fallback ---
-                statusMessage.textContent = '使用本地辨識中...';
-                const result = await Tesseract.recognize(file, 'jpn', {
+                const ocrLang = MAIN_TARGET_LANG === 'ja' ? 'jpn' : 'eng';
+                statusMessage.textContent = `使用本地辨識 (${ocrLang})...`;
+                const result = await Tesseract.recognize(file, ocrLang, {
                     logger: m => {
                         if (m.status === 'recognizing text') {
                             statusMessage.textContent = `辨識中: ${Math.round(m.progress * 100)}%`;
@@ -400,23 +445,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // STEP 3: 使用選定的模型進行翻譯
             const url = `https://generativelanguage.googleapis.com/v1beta/models/${bestModel}:generateContent?key=${GEMINI_API_KEY}`;
+            const targetName = MAIN_TARGET_LANG === 'ja' ? 'Japanese' : 'English';
             const prompt = `
-                ACT AS A PRECISE OCR SCANNER. 
-                1. Identify all Japanese text in the image.
-                2. For each text item, find its PRECISE bounding box.
-                Return a JSON object:
-                {
-                  "rawText": "full text summary",
-                  "lines": [
+                    ACT AS A PRECISE OCR SCANNER. 
+                    1. Identify all ${targetName} text in the image.
+                    2. For each text item, find its PRECISE bounding box.
+                    Return a JSON object:
                     {
-                      "original": "Japanese text",
-                      "translated": "Traditional Chinese",
-                      "box": [ymin, xmin, ymax, xmax] 
+                      "rawText": "full text summary",
+                      "lines": [
+                        {
+                          "original": "${targetName} text",
+                          "translated": "Traditional Chinese",
+                          "box": [ymin, xmin, ymax, xmax] 
+                        }
+                      ]
                     }
-                  ]
-                }
-                *Coordinates 0-1000.* RETURN ONLY JSON.
-            `;
+                    *Coordinates 0-1000.* RETURN ONLY JSON.
+                `;
 
             const response = await fetch(url, {
                 method: 'POST',
@@ -451,12 +497,186 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function fileToBase64(file) {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.readAsDataURL(file);
-            reader.onload = () => resolve(reader.result);
-            reader.onerror = error => reject(error);
+    // --- 旅遊工具箱邏輯 (v4.0) ---
+    const btnToolbox = document.getElementById('btnToolbox');
+    const toolboxModal = document.getElementById('toolboxModal');
+    const closeToolbox = document.getElementById('closeToolbox');
+    const tabBtns = document.querySelectorAll('.tab-btn');
+    const tabPanels = document.querySelectorAll('.tab-panel');
+
+    // 開關模態視窗
+    if (btnToolbox && toolboxModal) {
+        btnToolbox.onclick = () => {
+            toolboxModal.style.display = 'flex';
+            updateHistoryList();
+            loadEmergencyInfo();
+            updateExchangeRate();
+        };
+    }
+
+    if (closeToolbox && toolboxModal) {
+        closeToolbox.onclick = () => {
+            toolboxModal.style.display = 'none';
+        };
+    }
+
+    // 分頁切換
+    tabBtns.forEach(btn => {
+        btn.onclick = () => {
+            const target = btn.getAttribute('data-tab');
+            tabBtns.forEach(b => b.classList.remove('active'));
+            tabPanels.forEach(p => p.classList.remove('active'));
+
+            btn.classList.add('active');
+            const panel = document.getElementById(`${target}Panel`);
+            if (panel) panel.classList.add('active');
+        };
+    });
+
+    // 常用語邏輯
+    const phraseBtns = document.querySelectorAll('.phrase-btn');
+    phraseBtns.forEach(btn => {
+        btn.onclick = async () => {
+            const text = btn.textContent;
+            statusMessage.textContent = '翻譯常用語...';
+            const translated = await translateText(text, 'zh-TW', 'ja');
+            addMessageToChat(text, translated, 'zh');
+            speakText(translated, 'ja');
+            statusMessage.textContent = '準備就緒';
+            // saveToHistory(text, translated); // 已在 addMessageToChat 內存過，此處刪除以免重複存檔
+        };
+    });
+
+    // 救急卡邏輯
+    const btnSaveEmergency = document.getElementById('btnSaveEmergency');
+    const emergencyPreview = document.getElementById('emergencyPreview');
+
+    function loadEmergencyInfo() {
+        const info = JSON.parse(localStorage.getItem('EMERGENCY_INFO') || '{}');
+        const nameInp = document.getElementById('infoName');
+        const medInp = document.getElementById('infoMedical');
+        const phoneInp = document.getElementById('infoPhone');
+        if (nameInp) nameInp.value = info.name || '';
+        if (medInp) medInp.value = info.medical || '';
+        if (phoneInp) phoneInp.value = info.phone || '';
+        updateEmergencyPreview(info);
+    }
+
+    function updateEmergencyPreview(info) {
+        const preview = document.getElementById('emergencyPreview');
+        if (!preview) return;
+        if (!info.name && !info.medical && !info.phone) {
+            preview.innerHTML = '<p style="color:#888; text-align:center;">尚未填寫資訊</p>';
+            return;
+        }
+        preview.innerHTML = `
+            <h3 style="margin-bottom:10px; border-bottom:2px solid #e74c3c; padding-bottom:5px;">本人確認卡 (Emergency Card)</h3>
+            <p><strong>氏名 (Name):</strong> ${info.name}</p>
+            <p><strong>持病/アレルギー (Medical):</strong> ${info.medical}</p>
+            <p><strong>緊急連絡先 (Contact):</strong> ${info.phone}</p>
+            <p style="margin-top:10px; font-size:0.8rem; color:#888;">* 遭遇緊急狀況時，請將此畫面出示給醫護人員或警方。</p>
+        `;
+    }
+
+    if (btnSaveEmergency) {
+        btnSaveEmergency.onclick = () => {
+            const info = {
+                name: document.getElementById('infoName')?.value.trim() || '',
+                medical: document.getElementById('infoMedical')?.value.trim() || '',
+                phone: document.getElementById('infoPhone')?.value.trim() || ''
+            };
+            localStorage.setItem('EMERGENCY_INFO', JSON.stringify(info));
+            updateEmergencyPreview(info);
+            alert('資訊已儲存！');
+        };
+    }
+
+    // 匯率邏輯 (簡單台幣轉日幣)
+    const twdInput = document.getElementById('twdAmount');
+    const jpyInput = document.getElementById('jpyAmount');
+    const currentRateDisp = document.getElementById('currentRateDisp');
+    const btnRefreshRate = document.getElementById('btnRefreshRate');
+    let currentRate = 4.65; // 預設匯率
+
+    async function updateExchangeRate() {
+        const rateDisp = document.getElementById('currentRateDisp');
+        if (rateDisp) rateDisp.textContent = '正在獲取最新匯率...';
+        try {
+            const res = await fetch('https://api.exchangerate-api.com/v4/latest/TWD');
+            const data = await res.json();
+            currentRate = data.rates.JPY;
+            if (rateDisp) rateDisp.textContent = `當前匯率: 1 TWD = ${currentRate.toFixed(2)} JPY`;
+        } catch (e) {
+            if (rateDisp) rateDisp.textContent = `無法讀取匯率，使用暫存匯率: 1 TWD = ${currentRate} JPY`;
+        }
+    }
+
+    if (twdInput) {
+        twdInput.oninput = () => {
+            if (jpyInput) jpyInput.value = (twdInput.value * currentRate).toFixed(0);
+        };
+    }
+
+    if (jpyInput) {
+        jpyInput.oninput = () => {
+            if (twdInput) twdInput.value = (jpyInput.value / currentRate).toFixed(0);
+        };
+    }
+
+    if (btnRefreshRate) btnRefreshRate.onclick = updateExchangeRate;
+
+    // 歷史紀錄邏輯
+    function saveToHistory(orig, trans) {
+        let history = JSON.parse(localStorage.getItem('TRANS_HISTORY') || '[]');
+        history.unshift({ orig, trans, time: new Date().toLocaleTimeString() });
+        history = history.slice(0, 20); // 只留最近 20 筆
+        localStorage.setItem('TRANS_HISTORY', JSON.stringify(history));
+    }
+
+    function updateHistoryList() {
+        const historyList = document.getElementById('historyList');
+        const history = JSON.parse(localStorage.getItem('TRANS_HISTORY') || '[]');
+
+        if (history.length === 0) {
+            historyList.innerHTML = '<p style="color:#888; text-align:center;">尚無歷史紀錄</p>';
+            return;
+        }
+
+        historyList.innerHTML = '';
+        history.forEach(item => {
+            const div = document.createElement('div');
+            div.className = 'list-item';
+            div.style.borderLeftColor = '#3498db';
+            div.innerHTML = `
+                <div class="item-text">
+                    <div class="orig"></div>
+                    <div class="trans"></div>
+                </div>
+                <button class="play-btn">🔊</button>
+            `;
+            div.querySelector('.orig').textContent = `${item.orig} (${item.time})`;
+            div.querySelector('.trans').textContent = item.trans;
+            div.querySelector('.play-btn').onclick = () => window.speakTextFromHistory(item.trans);
+            historyList.appendChild(div);
         });
     }
+
+    // 為了讓 HTML 內的 onclick 能呼叫到 speakText
+    window.speakTextFromHistory = (text) => {
+        speakText(text, 'ja');
+    };
+
+    document.getElementById('btnClearHistory').onclick = () => {
+        if (confirm('確定要清除所有翻譯歷史嗎？')) {
+            localStorage.setItem('TRANS_HISTORY', '[]');
+            updateHistoryList();
+        }
+    };
+
+    // 修改原有的 addMessageToChat 以便存入歷史
+    const originalAddMessageToChat = addMessageToChat;
+    addMessageToChat = (originalText, translatedText, type) => {
+        originalAddMessageToChat(originalText, translatedText, type);
+        saveToHistory(originalText, translatedText);
+    };
 });
